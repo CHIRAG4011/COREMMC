@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Users ───────────────────────────────────────────────────────────
+model User {
+  id                   String   @id // Firebase Auth UID
+  email                String   @unique
+  displayName          String   @default("")
+  photoURL             String   @default("")
+  role                 String   @default("user") // user | admin | owner
+  emailVerified        Boolean  @default(false)
+  payment              Boolean  @default(false)  // has made at least one payment
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  lastLoginAt          DateTime @default(now())
+  notificationPrefEmail    Boolean @default(true)
+  notificationPrefService  Boolean @default(true)
+  notificationPrefMarketing Boolean @default(false)
+
+  orders         Order[]
+  payments       Payment[]
+  activityLogs   ActivityLog[]
+  notifications  UserNotification[]
+}
+
+// ── Orders (flat — replaces both allOrders and orders/{uid}/userOrders) ─
+model Order {
+  id             String   @id @default(cuid())
+  orderId        String   @unique // ORD-XXXX-XXXX format
+  userId         String
+  userEmail      String   @default("")
+  userName       String   @default("")
+  items          String   // JSON string of array
+  totalAmount    Float    @default(0)
+  currency       String   @default("INR")
+  status         String   @default("pending") // pending | processing | completed | cancelled
+  paidAt         DateTime?
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  approvedAt     DateTime?
+  approvedBy     String   @default("")
+  adminNotes     String   @default("")
+  discordId      String   @default("")
+  paymentUtr     String   @default("")
+  registeredEmail String  @default("")
+  screenshot     String   @default("")
+  videoUrl       String   @default("")
+  discountCode   String   @default("")
+  deliveryDetails String  @default("{}") // JSON
+  paymentInfo    String   @default("{}") // JSON
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([discountCode])
+}
+
+// ── Products ────────────────────────────────────────────────────────
+model Product {
+  id             String   @id @default(cuid())
+  planId         String   @unique
+  name           String
+  categoryId     String   @default("")
+  categoryName   String   @default("")
+  price          Float    @default(0)
+  originalPrice  Float?
+  currency       String   @default("INR")
+  billingCycle   String   @default("monthly")
+  billingUrl     String   @default("")
+  active         Boolean  @default(true)
+  popular        Boolean  @default(false)
+  badge          String   @default("")
+  specs          String   @default("{}") // JSON: Record<string, string> or Array<{key,value}>
+  features       String   @default("[]") // JSON: string[]
+  support        String   @default("Standard")
+  location       String   @default("")
+  setup          String   @default("Instant")
+  sortOrder      Int      @default(0)
+  imageUrl       String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([active])
+  @@index([sortOrder])
+}
+
+// ── Categories ──────────────────────────────────────────────────────
+model Category {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  description      String   @default("")
+  shortDescription String   @default("")
+  icon             String   @default("Globe")
+  color            String   @default("#3b82f6")
+  gradient         String   @default("")
+  sortOrder        Int      @default(0)
+  active           Boolean  @default(true)
+  featured         Boolean  @default(false)
+  heroTitle        String   @default("")
+  heroSubtitle     String   @default("")
+  metaTitle        String   @default("")
+  metaDescription  String   @default("")
+  imageUrl         String   @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([slug])
+  @@index([active])
+  @@index([sortOrder])
+}
+
+// ── Payments ────────────────────────────────────────────────────────
+model Payment {
+  id            String   @id @default(cuid())
+  userId        String
+  userEmail     String   @default("")
+  productId     String   @default("")
+  productName   String   @default("")
+  planName      String   @default("")
+  category      String   @default("")
+  amount        Float    @default(0)
+  payment       Boolean  @default(false) // active payment flag
+  status        String   @default("active") // active | suspended | expired
+  notes         String   @default("")
+  paymentDate   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([paymentDate])
+}
+
+// ── Activity Logs ───────────────────────────────────────────────────
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String   @default("")
+  userName   String   @default("")
+  userEmail  String   @default("")
+  action     String
+  resource   String   @default("")
+  resourceId String   @default("")
+  details    String   @default("")
+  description String  @default("")
+  metadata   String   @default("{}") // JSON
+  ipAddress  String   @default("")
+  userAgent  String   @default("")
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ── Global Notifications ────────────────────────────────────────────
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String   @default("")
+  type        String   @default("info") // info | success | warning | error
+  active      Boolean  @default(true)
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  targetUserId String  @default("")
+  orderId     String   @default("")
+
+  @@index([active])
+  @@index([createdAt])
+  @@index([targetUserId])
+}
+
+// ── User Notifications (replaces subcollection) ─────────────────────
+model UserNotification {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  message     String   @default("")
+  type        String   @default("info")
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  orderId     String   @default("")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ── Announcements ───────────────────────────────────────────────────
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @default("")
+  type        String   @default("update")
+  icon        String   @default("sparkles")
+  color       String   @default("")
+  imageUrl    String   @default("")
+  dismissible Boolean  @default(true)
+  active      Boolean  @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+// ── Discounts ───────────────────────────────────────────────────────
+model Discount {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  description     String   @default("")
+  discountType    String   // percentage | fixed
+  discountValue   Float
+  minOrderAmount  Float    @default(0)
+  maxUses         Int      @default(0)
+  usedCount       Int      @default(0)
+  active          Boolean  @default(true)
+  showInBanner    Boolean  @default(false)
+  startDate       String   @default("")
+  endDate         String   @default("")
+  createdAt       DateTime @default(now())
+
+  @@index([code])
+  @@index([active])
+  @@index([showInBanner])
+}
+
+// ── Settings (single row, id = 'website') ───────────────────────────
+model SiteSettings {
+  id                 String   @id @default("website")
+  siteName           String   @default("CoreMMC")
+  siteDescription    String   @default("")
+  logoUrl            String   @default("")
+  faviconUrl         String   @default("")
+  contactEmail       String   @default("")
+  supportDiscord     String   @default("")
+  supportHours       String   @default("")
+  discordUrl         String   @default("")
+  instagramUrl       String   @default("")
+  youtubeUrl         String   @default("")
+  telegramUrl        String   @default("")
+  websiteUrl         String   @default("")
+  footerText         String   @default("\u00A9 2025 CoreMMC. All rights reserved.")
+  maintenanceMode    Boolean  @default(false)
+  maintenanceMessage String   @default("")
+  paymentUrl         String   @default("")
+  paymentEnabled     Boolean  @default(true)
+  qrPaymentUrl       String   @default("")
+  upiId              String   @default("")
+  promoEnabled       Boolean  @default(false)
+  promoText          String   @default("")
+  promoSubtext       String   @default("")
+  promoDiscount      String   @default("30")
+  promoEndDate       String   @default("")
+  promoPadding       String   @default("py-6 md:py-8")
+  updatedAt          DateTime @updatedAt
+}
+
+// ── Service Status (single row, id = 'serviceStatus') ───────────────
+model ServiceStatus {
+  id             String   @id @default("serviceStatus")
+  services       String   @default("[]") // JSON array of {id, name, status, uptime}
+  overallStatus  String   @default("operational")
+  lastUpdated    String   @default("")
+  incidentMessage String  @default("")
+}

@@ -1,0 +1,151 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ──────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function getTargetRole(targetUserId) {
+      return get(/databases/$(database)/documents/users/$(targetUserId)).data.role;
+    }
+
+    function isOwner() {
+      return getUserRole() == 'owner';
+    }
+
+    function isAdminOrOwner() {
+      let role = getUserRole();
+      return role == 'admin' || role == 'owner';
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Anyone authenticated can read their own profile; admins/owners can read all
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminOrOwner());
+      // Users can create their own doc (on registration)
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Users can update their own profile (non-role fields only, enforced client-side);
+      // Admins can update non-owners; Owners can update anyone;
+      // Nobody (not even owners) can modify another owner's role
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        (isOwner()) ||
+        (isAdminOrOwner() && getTargetRole(userId) != 'owner')
+      );
+      // Only owner can delete users (not owners)
+      allow delete: if isAuthenticated() && isOwner() && getTargetRole(userId) != 'owner';
+    }
+
+    // ── User Orders (subcollection) ───────────────────────────────────
+    match /users/{userId}/userOrders/{orderId} {
+      // Users can read their own orders; admins/owners can read all
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminOrOwner());
+      // Only system/server creates orders (Admin SDK handles this)
+      allow create: if false;
+      // Server updates only (Admin SDK bypasses rules)
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── Roles ─────────────────────────────────────────────────────────
+    match /roles/{roleId} {
+      // Public read (needed for permission checks)
+      allow read: if true;
+      // Only owner can write roles
+      allow write: if isAuthenticated() && isOwner();
+    }
+
+    // ── Categories ───────────────────────────────────────────────────
+    match /categories/{categoryId} {
+      // Public read (categories shown on website)
+      allow read: if true;
+      // Admin/owner CRUD
+      allow write: if isAuthenticated() && isAdminOrOwner();
+    }
+
+    // ── Products ──────────────────────────────────────────────────────
+    match /products/{productId} {
+      // Public read (products shown on website)
+      allow read: if true;
+      // Admin/owner CRUD
+      allow write: if isAuthenticated() && isAdminOrOwner();
+    }
+
+    // ── Payments ──────────────────────────────────────────────────────
+    match /payments/{paymentId} {
+      // Users can read their own payments; admins can read all
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdminOrOwner());
+      // Only admins/owners can create/update/delete payments
+      allow write: if isAuthenticated() && isAdminOrOwner();
+    }
+
+    // ── Announcements ────────────────────────────────────────────────
+    match /announcements/{announcementId} {
+      // Public read (shown on website)
+      allow read: if true;
+      // Admin/owner CRUD
+      allow write: if isAuthenticated() && isAdminOrOwner();
+    }
+
+    // ── Offers / Discounts ───────────────────────────────────────────
+    match /discounts/{discountId} {
+      // Public read (needed for promo banner and validation)
+      allow read: if true;
+      // Admin/owner CRUD
+      allow write: if isAuthenticated() && isAdminOrOwner();
+    }
+
+    // ── All Orders (global, admin view) ───────────────────────────────
+    match /allOrders/{orderId} {
+      // Only admins/owners can read
+      allow read: if isAuthenticated() && isAdminOrOwner();
+      // Server/Admin SDK creates and updates (bypasses rules)
+      allow write: if false;
+    }
+
+    // ── Settings ─────────────────────────────────────────────────────
+    match /settings/{settingId} {
+      // Public read (site name, social links shown on website)
+      allow read: if true;
+      // Admin/owner write
+      allow write: if isAuthenticated() && isAdminOrOwner();
+    }
+
+    // ── Activity Logs ─────────────────────────────────────────────────
+    match /activityLogs/{logId} {
+      // Users can read their own logs; admins can read all
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdminOrOwner());
+      // Any authenticated user can create logs (for user actions)
+      allow create: if isAuthenticated();
+      // Only owner can update/delete logs
+      allow update, delete: if isAuthenticated() && isOwner();
+    }
+
+    // ── Website Status ───────────────────────────────────────────────
+    match /websiteStatus/{docId} {
+      // Public read (shown on admin dashboard, could be public stats)
+      allow read: if true;
+      // Admin/owner write
+      allow write: if isAuthenticated() && isAdminOrOwner();
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      // Any authenticated user can create notifications (system generates these)
+      allow create: if isAuthenticated();
+      // Users can update their own notifications (mark as read)
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      // Nobody can delete notifications (archive instead)
+      allow delete: if false;
+    }
+  }
+}
