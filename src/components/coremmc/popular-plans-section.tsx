@@ -67,7 +67,7 @@ async function handleBuyNow(
 
   if (!orderRes.ok) throw new Error('Failed to create order');
 
-  const redirectUrl = getPaymenterRedirectUrl([product], { userEmail: user.email || undefined });
+  const redirectUrl = getPaymenterRedirectUrl([product], { userEmail: userEmail || undefined });
   toast.success('Redirecting to CoreMMC Billing Panel...', { duration: 3000 });
   window.location.href = redirectUrl;
 }

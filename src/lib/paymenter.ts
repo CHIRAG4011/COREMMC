@@ -12,14 +12,11 @@ export const PAYMENTER_API_KEY =
   process.env.PAYMENTER_API_KEY ||
   'PAYM3eac20793e0b8239f96adc0eb8aa79305eb681cd3a707eec1c43eb2eaa1cc177';
 
-// Known product routes on Paymenter
+// Complete live product catalog on Paymenter (billing.coremmc.cloud)
 export const PAYMENTER_CATALOG: Record<string, string[]> = {
-  'domain-hosting': ['fun', 'store', 'shop', 'cloud', 'online', 'pro', 'blog', 'cc', 'coin', 'in', 'tech', 'org', 'com', 'net'],
-  'discord-bot-hosting': ['pro-bot', 'elite-bot', 'ultra-bot', 'enterprise-bot'],
-  'web-hosting': ['coal-plan', 'copper-plan', 'iron-plan', 'emerald-plan', 'diamond-plan'],
   'minecraft-intel': [
-    'pig-plan',
     'cow-plan-intel',
+    'pig-plan',
     'sheep-plan-intel',
     'slime-plan-intel',
     'villager-plan-intel',
@@ -32,6 +29,7 @@ export const PAYMENTER_CATALOG: Record<string, string[]> = {
   'minecraft-amd-ryzen7': [
     'mouse-amd-ryzen7',
     'rabbit-amd-ryzen7',
+    'fox-amd-ryzen7',
     'lion-amd-ryzen7',
     'bear-amd-ryzen7',
     'panda-amd-ryzen7',
@@ -39,15 +37,14 @@ export const PAYMENTER_CATALOG: Record<string, string[]> = {
     'gorilla-amd-ryzen7',
     'elphant-amd-ryzen7',
     'warden-amd-ryzen7',
-    'fox-amd-ryzen7',
   ],
   'minecraft-amd-ryzen9': [
-    'fox-amd-ryzen9',
     'mouse-amd-ryzen9',
     'rabbit-amd-ryzen9',
+    'fox-amd-ryzen9',
+    'lion-amd-ryzen9',
     'bear-amd-ryzen9',
     'panda-amd-ryzen9',
-    'lion-amd-ryzen9',
     'dragon-amd-ryzen9',
     'gorilla-amd-ryzen9',
     'elphant-amd-ryzen9',
@@ -60,6 +57,7 @@ export const PAYMENTER_CATALOG: Record<string, string[]> = {
     'builder-intel',
     'kingdom-intel',
     'empire-intel',
+    'copy-of-builder-amd',
   ],
   'hytale-amd-hosting': [
     'starter-amd',
@@ -101,8 +99,51 @@ export const PAYMENTER_CATALOG: Record<string, string[]> = {
     'pal-titan-amd',
     'pal-ultimate-amd',
   ],
-  'vps-intel': ['growth-ready', 'ultra-tier'],
-  'vps-amd-epyc': ['ultimate-32'],
+  'vps-intel': [
+    'entry-level',
+    'growth-ready',
+    'performence',
+    'pro-edition',
+    'ultra-tier',
+    'supreme-tier',
+  ],
+  'vps-amd-epyc': [
+    'bronze',
+    'silver',
+    'gold',
+    'platinum',
+    'ultimate-32',
+    'ultimate-64',
+  ],
+  'domain-hosting': [
+    'fun',
+    'store',
+    'shop',
+    'cloud',
+    'online',
+    'pro',
+    'blog',
+    'cc',
+    'coin',
+    'in',
+    'tech',
+    'org',
+    'com',
+    'net',
+  ],
+  'discord-bot-hosting': [
+    'pro-bot',
+    'elite-bot',
+    'ultra-bot',
+    'enterprise-bot',
+  ],
+  'web-hosting': [
+    'coal-plan',
+    'copper-plan',
+    'iron-plan',
+    'emerald-plan',
+    'diamond-plan',
+  ],
 };
 
 // Map CoreMMC category IDs and slugs to Paymenter category slugs
@@ -115,6 +156,8 @@ export const CATEGORY_MAP: Record<string, string> = {
   'hytale-amd': 'hytale-amd-hosting',
   'proxy-intel': 'coreproxy-shield-intel',
   'proxy-amd': 'coreproxy-shield-amd',
+  'palworld-intel': 'palworld-intel-servers',
+  'palworld-amd': 'palworld-amd-servers',
   'domain-hosting': 'domain-hosting',
   'discord-bot-hosting': 'discord-bot-hosting',
   'web-hosting': 'web-hosting',
@@ -123,7 +166,8 @@ export const CATEGORY_MAP: Record<string, string> = {
 };
 
 /**
- * Resolves the Paymenter checkout URL for an individual product item
+ * Resolves the Paymenter checkout URL for an individual product item.
+ * Always takes the user directly to the service checkout screen, avoiding empty cart errors.
  */
 export function getPaymenterProductCheckoutUrl(
   item: {
@@ -147,20 +191,73 @@ export function getPaymenterProductCheckoutUrl(
   const catKey = (item.categoryId || '').trim();
   const paymenterCat = CATEGORY_MAP[catKey] || catKey;
 
-  const cleanPlan = planId
-    .replace(/-plan$/, '')
-    .replace(/^plan-/, '')
-    .replace('elephant', 'elphant');
+  // 2. Domain Hosting
+  if (paymenterCat === 'domain-hosting') {
+    const cleanTld = name.replace(/^\./, '').replace(/^dom-/, '').trim();
+    const tldFromPlan = planId.replace(/^dom-/, '').replace(/-/g, '').trim();
+    for (const d of PAYMENTER_CATALOG['domain-hosting']) {
+      if (d === cleanTld || d === tldFromPlan || cleanTld === `co.${d}`) {
+        return appendOptions(`${PAYMENTER_BASE_URL}/products/domain-hosting/${d}/checkout`, options);
+      }
+    }
+    return appendOptions(`${PAYMENTER_BASE_URL}/products/domain-hosting/com/checkout`, options);
+  }
 
-  const cleanName = name
-    .replace(/\s+plan$/i, '')
-    .replace(/\s+/g, '-')
-    .replace(/^\./, '')
-    .replace('elephant', 'elphant');
+  // 3. Discord Bot Hosting
+  if (paymenterCat === 'discord-bot-hosting') {
+    for (const b of PAYMENTER_CATALOG['discord-bot-hosting']) {
+      const bKey = b.replace('-bot', '');
+      if (planId.includes(bKey) || name.includes(bKey)) {
+        return appendOptions(`${PAYMENTER_BASE_URL}/products/discord-bot-hosting/${b}/checkout`, options);
+      }
+    }
+    return appendOptions(`${PAYMENTER_BASE_URL}/products/discord-bot-hosting/pro-bot/checkout`, options);
+  }
 
-  // 2. Search in target category first
+  // 4. AMD VPS
+  if (paymenterCat === 'vps-amd-epyc') {
+    for (const v of PAYMENTER_CATALOG['vps-amd-epyc']) {
+      if (planId.includes(v) || name.includes(v)) {
+        return appendOptions(`${PAYMENTER_BASE_URL}/products/vps-amd-epyc/${v}/checkout`, options);
+      }
+    }
+    return appendOptions(`${PAYMENTER_BASE_URL}/products/vps-amd-epyc/bronze/checkout`, options);
+  }
+
+  // 5. Intel VPS
+  if (paymenterCat === 'vps-intel') {
+    for (const v of PAYMENTER_CATALOG['vps-intel']) {
+      const vKey = v.replace('-tier', '').replace('-level', '').replace('-ready', '').replace('-edition', '');
+      if (
+        planId.includes(vKey) ||
+        name.includes(vKey) ||
+        (v === 'performence' && (planId.includes('performance') || name.includes('performance')))
+      ) {
+        return appendOptions(`${PAYMENTER_BASE_URL}/products/vps-intel/${v}/checkout`, options);
+      }
+    }
+    return appendOptions(`${PAYMENTER_BASE_URL}/products/vps-intel/entry-level/checkout`, options);
+  }
+
+  // 6. Discord Services & Paid Works (Custom services managed directly via ticket)
+  if (catKey === 'discord-services' || catKey === 'paid-works') {
+    return appendOptions(`${PAYMENTER_BASE_URL}/tickets/create`, options);
+  }
+
+  // 7. Search in mapped category first
   if (PAYMENTER_CATALOG[paymenterCat]) {
     const prods = PAYMENTER_CATALOG[paymenterCat];
+
+    const cleanPlan = planId
+      .replace(/-plan$/, '')
+      .replace(/^plan-/, '')
+      .replace('elephant', 'elphant');
+
+    const cleanName = name
+      .replace(/\s+plan$/i, '')
+      .replace(/\s+/g, '-')
+      .replace(/^\./, '')
+      .replace('elephant', 'elphant');
 
     // Exact matches
     for (const prod of prods) {
@@ -172,7 +269,7 @@ export function getPaymenterProductCheckoutUrl(
       }
     }
 
-    // First token match (e.g. "slime", "dragon", "blaze")
+    // Token / Prefix match (e.g. "slime", "dragon", "blaze", "pal-starter")
     const planFirstToken = cleanPlan.split('-')[0];
     const nameFirstToken = cleanName.split('-')[0];
 
@@ -188,12 +285,20 @@ export function getPaymenterProductCheckoutUrl(
         );
       }
     }
+
+    // Fallback to first product in this category
+    if (prods.length > 0) {
+      return appendOptions(
+        `${PAYMENTER_BASE_URL}/products/${paymenterCat}/${prods[0]}/checkout`,
+        options
+      );
+    }
   }
 
-  // 3. Exact search across all categories
+  // 8. Cross-category search
   for (const [cat, prods] of Object.entries(PAYMENTER_CATALOG)) {
     for (const prod of prods) {
-      if (prod === cleanPlan || prod === cleanName) {
+      if (prod === planId || planId.includes(prod) || name.includes(prod)) {
         return appendOptions(
           `${PAYMENTER_BASE_URL}/products/${cat}/${prod}/checkout`,
           options
@@ -202,17 +307,13 @@ export function getPaymenterProductCheckoutUrl(
     }
   }
 
-  // 4. Fallback to category page if known
-  if (PAYMENTER_CATALOG[paymenterCat]) {
-    return appendOptions(`${PAYMENTER_BASE_URL}/products/${paymenterCat}`, options);
-  }
-
-  // 5. Default fallback to Paymenter cart
-  return appendOptions(`${PAYMENTER_BASE_URL}/cart`, options);
+  // 9. Safe fallback to Paymenter shop (never /cart)
+  return appendOptions(`${PAYMENTER_BASE_URL}/shop`, options);
 }
 
 /**
- * Resolves the full redirect URL for any cart state
+ * Resolves the full redirect URL for any cart state.
+ * Directs the user to the direct checkout of the primary item to avoid "Cart is empty" error.
  */
 export function getPaymenterRedirectUrl(
   items: Array<{
@@ -227,16 +328,11 @@ export function getPaymenterRedirectUrl(
   }
 ): string {
   if (!items || items.length === 0) {
-    return appendOptions(`${PAYMENTER_BASE_URL}/cart`, options);
+    return appendOptions(`${PAYMENTER_BASE_URL}/shop`, options);
   }
 
-  // If single item, send directly to that product's checkout page on Paymenter
-  if (items.length === 1) {
-    return getPaymenterProductCheckoutUrl(items[0], options);
-  }
-
-  // Multi-item cart redirects to Paymenter cart
-  return appendOptions(`${PAYMENTER_BASE_URL}/cart`, options);
+  // Always redirect to the direct product checkout of the primary item
+  return getPaymenterProductCheckoutUrl(items[0], options);
 }
 
 function appendOptions(

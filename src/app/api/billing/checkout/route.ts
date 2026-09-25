@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        redirectUrl: 'https://billing.coremmc.cloud/cart',
+        redirectUrl: 'https://billing.coremmc.cloud/shop',
         error: err instanceof Error ? err.message : 'Unknown error',
       },
       { status: 500 }

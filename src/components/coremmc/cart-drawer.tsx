@@ -31,7 +31,7 @@ import { useAuth } from '@/components/coremmc/auth-provider';
 import { formatPrice } from '@/data/products';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { getPaymenterRedirectUrl } from '@/lib/paymenter';
+import { getPaymenterRedirectUrl, getPaymenterProductCheckoutUrl } from '@/lib/paymenter';
 
 export function CartDrawer() {
   const {
@@ -121,7 +121,7 @@ export function CartDrawer() {
   const finalDiscount = Math.min(effectiveDiscount, totalPrice);
   const finalTotal = Math.max(0, totalPrice - finalDiscount);
 
-  const handleProceedToPayment = async () => {
+  const handleProceedSingleItem = async (item: (typeof items)[0]) => {
     if (!user) {
       showAuthToast();
       setCartOpen(false);
@@ -131,12 +131,56 @@ export function CartDrawer() {
 
     setRedirecting(true);
 
+    const redirectUrl = getPaymenterProductCheckoutUrl(item, {
+      discountCode: appliedDiscount?.code,
+      userEmail: user.email || undefined,
+    });
+
+    try {
+      await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          userEmail: user.email || '',
+          userName: user.displayName || '',
+          items: [item],
+          totalAmount: item.price * item.quantity,
+          discountCode: appliedDiscount?.code || '',
+          discountAmount: 0,
+        }),
+      });
+    } catch (e) {
+      console.warn('API checkout order creation warning, redirecting directly:', e);
+    }
+
+    toast.success(`Redirecting to ${item.name} checkout...`, { duration: 3000 });
+    removeFromCart(item.planId);
+    setCartOpen(false);
+    window.location.href = redirectUrl;
+  };
+
+  const handleProceedToPayment = async () => {
+    if (!user) {
+      showAuthToast();
+      setCartOpen(false);
+      navigate('login');
+      return;
+    }
+
+    if (items.length === 0) return;
+
+    setRedirecting(true);
+
+    const targetItem = items[0];
+    const isSingleItem = items.length === 1;
+
     // Update applied discount with recalculated amount before proceeding
     if (appliedDiscount && finalDiscount !== appliedDiscount.discountAmount) {
       applyDiscount({ ...appliedDiscount, discountAmount: finalDiscount });
     }
 
-    const defaultRedirectUrl = getPaymenterRedirectUrl(items, {
+    const defaultRedirectUrl = getPaymenterProductCheckoutUrl(targetItem, {
       discountCode: appliedDiscount?.code,
       userEmail: user.email || undefined,
     });
@@ -150,24 +194,43 @@ export function CartDrawer() {
           userId: user.uid,
           userEmail: user.email || '',
           userName: user.displayName || '',
-          items,
-          totalAmount: finalTotal,
+          items: isSingleItem ? items : [targetItem],
+          totalAmount: isSingleItem ? finalTotal : targetItem.price * targetItem.quantity,
           discountCode: appliedDiscount?.code || '',
-          discountAmount: finalDiscount,
+          discountAmount: isSingleItem ? finalDiscount : 0,
         }),
       });
 
       const data = await res.json();
       const redirectUrl = data.redirectUrl || defaultRedirectUrl;
 
-      toast.success('Redirecting to CoreMMC Billing Panel...', { duration: 3000 });
-      clearCart();
+      toast.success(
+        isSingleItem
+          ? 'Redirecting to CoreMMC Billing Panel...'
+          : `Redirecting to ${targetItem.name} checkout...`,
+        { duration: 3000 }
+      );
+
+      if (isSingleItem) {
+        clearCart();
+      } else {
+        removeFromCart(targetItem.planId);
+      }
       setCartOpen(false);
       window.location.href = redirectUrl;
     } catch (e) {
       console.warn('API checkout order creation warning, redirecting directly:', e);
-      toast.success('Redirecting to CoreMMC Billing Panel...', { duration: 3000 });
-      clearCart();
+      toast.success(
+        isSingleItem
+          ? 'Redirecting to CoreMMC Billing Panel...'
+          : `Redirecting to ${targetItem.name} checkout...`,
+        { duration: 3000 }
+      );
+      if (isSingleItem) {
+        clearCart();
+      } else {
+        removeFromCart(targetItem.planId);
+      }
       setCartOpen(false);
       window.location.href = defaultRedirectUrl;
     } finally {
@@ -249,6 +312,16 @@ export function CartDrawer() {
           </div>
         ) : (
           <>
+            {/* Multi-item Info Tip */}
+            {items.length > 1 && (
+              <div className="mx-4 mt-3 mb-1 p-2.5 rounded-lg bg-[#6366f1]/10 border border-[#6366f1]/20 text-xs text-indigo-300 flex items-start gap-2">
+                <span className="text-base leading-none">💡</span>
+                <span>
+                  Plans are configured individually on Paymenter. You can checkout each plan directly or proceed one-by-one.
+                </span>
+              </div>
+            )}
+
             {/* Scrollable Items */}
             <ScrollArea className="flex-1 px-4 pt-4" style={{ maxHeight: 'calc(100vh - 370px)' }}>
               <div className="flex flex-col gap-3 pb-2">
@@ -297,33 +370,47 @@ export function CartDrawer() {
                         </button>
                       </div>
 
-                      {/* Quantity Controls */}
-                      <div className="mt-3 flex items-center gap-1">
-                        <button
-                          onClick={() =>
-                            updateQuantity(item.planId, item.quantity - 1)
-                          }
-                          disabled={item.quantity <= 1}
-                          className="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                          aria-label="Decrease quantity"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                        <span className="min-w-[40px] text-center text-white text-sm font-medium tabular-nums">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() =>
-                            updateQuantity(item.planId, item.quantity + 1)
-                          }
-                          className="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-colors"
-                          aria-label="Increase quantity"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                        <span className="ml-2 text-zinc-500 text-xs">
-                          {item.selectedDuration}
-                        </span>
+                      {/* Quantity Controls & Direct Checkout */}
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.planId, item.quantity - 1)
+                            }
+                            disabled={item.quantity <= 1}
+                            className="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="min-w-[40px] text-center text-white text-sm font-medium tabular-nums">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.planId, item.quantity + 1)
+                            }
+                            className="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-colors"
+                            aria-label="Increase quantity"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="ml-2 text-zinc-500 text-xs">
+                            {item.selectedDuration}
+                          </span>
+                        </div>
+
+                        {items.length > 1 && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleProceedSingleItem(item)}
+                            disabled={redirecting}
+                            className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#818cf8] border border-[#6366f1]/30 gap-1 shrink-0"
+                          >
+                            <span>Checkout</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -435,6 +522,12 @@ export function CartDrawer() {
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Redirecting to Billing Panel...
+                  </>
+                ) : items.length > 1 ? (
+                  <>
+                    <CreditCard className="h-5 w-5" />
+                    <span className="truncate max-w-[260px]">Checkout {items[0]?.name}</span>
+                    <ExternalLink className="h-4 w-4 ml-1 opacity-70 shrink-0" />
                   </>
                 ) : (
                   <>
