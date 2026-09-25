@@ -33,12 +33,10 @@ dev.log
 service-account*.json
 *.pem
 
-# Database files & local exports containing sensitive data
-db/*.db
+# Database temporary & journal files
+*.db-journal
+*.sqlite-journal
 db/*.db-journal
-db/*.sqlite
-db/*.sqlite3
-db/export.json
 
 # Operating System Files
 .DS_Store

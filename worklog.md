@@ -198,3 +198,20 @@ Stage Summary:
 - Root causes: (1) Frontend sends 'category' but backend expected 'categoryId', (2) planId required but frontend sent null, (3) specs/features double-stringified, (4) 'order' vs 'sortOrder' mismatch
 - All CRUD operations now verified working on live site via curl tests
 - Error messages now show actual API error instead of generic "Failed to save"
+---
+Task ID: 3
+Agent: Main Agent
+Task: Integrate coremmc.db database, configure automated Vercel migration & seeding, push to GitHub
+
+Work Log:
+- Integrated coremmc.db (SQLite database with 178 users, 123 products, 14 categories, orders, settings) into the repository
+- Verified coremmc.db data integrity against db/export.json
+- Updated .gitignore to track coremmc.db and db/export.json as requested
+- Created scripts/prepare-db.js and scripts/seed-database.js for automated schema push and seeding during Vercel builds
+- Updated package.json build script to automatically push schema and seed data when DATABASE_URL is present on Vercel
+- Committed and pushed all database files, scripts, and configurations to GitHub
+
+Stage Summary:
+- Database integrated and tracked in git
+- Vercel automated schema push & seed configured
+- Pushed to GitHub repository CHIRAG4011/COREMMC
