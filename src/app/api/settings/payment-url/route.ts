@@ -8,12 +8,12 @@ export async function GET() {
     });
     if (settings) {
       return NextResponse.json({
-        paymentUrl: settings.paymentUrl || '',
+        paymentUrl: settings.paymentUrl || 'https://billing.coremmc.cloud',
         paymentEnabled: settings.paymentEnabled !== false,
       });
     }
-    return NextResponse.json({ paymentUrl: '', paymentEnabled: true });
+    return NextResponse.json({ paymentUrl: 'https://billing.coremmc.cloud', paymentEnabled: true });
   } catch {
-    return NextResponse.json({ paymentUrl: '', paymentEnabled: true });
+    return NextResponse.json({ paymentUrl: 'https://billing.coremmc.cloud', paymentEnabled: true });
   }
 }

@@ -23,7 +23,7 @@ const emptySettings = {
   telegramUrl: '',
   websiteUrl: '',
   footerText: '© 2025 CoreMMC. All rights reserved.',
-  paymentUrl: '',
+  paymentUrl: 'https://billing.coremmc.cloud',
   paymentEnabled: true,
   qrPaymentUrl: '',
   upiId: '',
@@ -465,7 +465,7 @@ export default function AdminSettings() {
                 value={settings.paymentUrl || ''}
                 onChange={(e) => update('paymentUrl', e.target.value)}
                 className="bg-zinc-800/50 border-zinc-700"
-                placeholder="https://pay.example.com/checkout?order={orderId}&amount={amount}"
+                placeholder="https://billing.coremmc.cloud"
               />
               <div className="flex items-start gap-2 text-xs text-zinc-500">
                 <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />

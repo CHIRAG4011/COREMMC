@@ -20,6 +20,8 @@ import { useAuth } from '@/components/coremmc/auth-provider';
 import { useCartFly } from '@/hooks/use-cart-fly';
 import { playCartSound, playBuySound } from '@/lib/sounds';
 import { TiltCard } from '@/components/ui/tilt-card';
+import { toast } from 'sonner';
+import { getPaymenterRedirectUrl } from '@/lib/paymenter';
 
 const specIconMap: Record<string, React.ElementType> = {
   ram: MemoryStick,
@@ -64,15 +66,10 @@ async function handleBuyNow(
   });
 
   if (!orderRes.ok) throw new Error('Failed to create order');
-  const orderData = await orderRes.json();
-  const orderId = orderData.id || orderData.orderId;
 
-  const { showPaymentView } = useAppStore.getState();
-  showPaymentView({
-    amount: product.price,
-    orderId,
-    items: [{ name: product.name, price: product.price, quantity: 1, categoryName: product.categoryName }],
-  });
+  const redirectUrl = getPaymenterRedirectUrl([product], { userEmail: user.email || undefined });
+  toast.success('Redirecting to CoreMMC Billing Panel...', { duration: 3000 });
+  window.location.href = redirectUrl;
 }
 
 export function PopularPlansSection() {

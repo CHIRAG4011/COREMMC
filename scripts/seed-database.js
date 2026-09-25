@@ -188,18 +188,6 @@ async function main() {
   console.log('[seed] Connecting to database...');
   await db.$connect();
 
-  // Check if seeding is already done (e.g. products already exist)
-  try {
-    const existingProducts = await db.product.count();
-    if (existingProducts >= 120) {
-      console.log(`[seed] Database already contains ${existingProducts} products. Skipping initial seed.`);
-      await db.$disconnect();
-      return;
-    }
-  } catch (err) {
-    console.log('[seed] Tables might not be initialized yet:', err.message);
-  }
-
   // Load export data
   const exportPath = path.join(process.cwd(), 'db', 'export.json');
   if (!fs.existsSync(exportPath)) {
@@ -209,6 +197,25 @@ async function main() {
   }
 
   const rawData = JSON.parse(fs.readFileSync(exportPath, 'utf8'));
+
+  // Always keep SiteSettings synced
+  if (rawData.SiteSettings) {
+    await importModel('SiteSettings', rawData.SiteSettings);
+    console.log('[seed] SiteSettings synchronized with billing URL.');
+  }
+
+  // Check if product catalog is already seeded
+  try {
+    const existingProducts = await db.product.count();
+    if (existingProducts >= 120) {
+      console.log(`[seed] Database already contains ${existingProducts} products. Skipping catalog seed.`);
+      await db.$disconnect();
+      return;
+    }
+  } catch (err) {
+    console.log('[seed] Tables might not be initialized yet:', err.message);
+  }
+
   let totalImported = 0;
 
   for (const model of IMPORT_ORDER) {

@@ -23,6 +23,7 @@ import {
   Tag,
   TicketCheck,
   Loader2,
+  ExternalLink,
 } from 'lucide-react';
 import { useCartStore } from '@/store/use-cart-store';
 import { useAppStore } from '@/store/use-app-store';
@@ -30,6 +31,7 @@ import { useAuth } from '@/components/coremmc/auth-provider';
 import { formatPrice } from '@/data/products';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { getPaymenterRedirectUrl } from '@/lib/paymenter';
 
 export function CartDrawer() {
   const {
@@ -52,6 +54,7 @@ export function CartDrawer() {
 
   const [discountCode, setDiscountCode] = useState('');
   const [validating, setValidating] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const totalItems = getTotalItems();
   const totalPrice = getTotalPrice();
@@ -118,7 +121,7 @@ export function CartDrawer() {
   const finalDiscount = Math.min(effectiveDiscount, totalPrice);
   const finalTotal = Math.max(0, totalPrice - finalDiscount);
 
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
     if (!user) {
       showAuthToast();
       setCartOpen(false);
@@ -126,32 +129,50 @@ export function CartDrawer() {
       return;
     }
 
+    setRedirecting(true);
+
     // Update applied discount with recalculated amount before proceeding
     if (appliedDiscount && finalDiscount !== appliedDiscount.discountAmount) {
       applyDiscount({ ...appliedDiscount, discountAmount: finalDiscount });
     }
 
-    const { showPaymentView } = useAppStore.getState();
-    showPaymentView({
-      amount: finalTotal,
-      orderId: '',
-      items: items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, categoryName: i.categoryName })),
-      cartItems: items.map((i) => ({
-        planId: i.planId,
-        name: i.name,
-        categoryName: i.categoryName,
-        categoryId: i.categoryId,
-        price: i.price,
-        originalPrice: i.originalPrice,
-        currency: i.currency,
-        quantity: i.quantity,
-        selectedDuration: i.selectedDuration,
-      })),
-      discountCode: appliedDiscount?.code || null,
-      discountAmount: finalDiscount,
+    const defaultRedirectUrl = getPaymenterRedirectUrl(items, {
+      discountCode: appliedDiscount?.code,
+      userEmail: user.email || undefined,
     });
 
-    setCartOpen(false);
+    try {
+      // Record order in CoreMMC backend for user's order history
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          userEmail: user.email || '',
+          userName: user.displayName || '',
+          items,
+          totalAmount: finalTotal,
+          discountCode: appliedDiscount?.code || '',
+          discountAmount: finalDiscount,
+        }),
+      });
+
+      const data = await res.json();
+      const redirectUrl = data.redirectUrl || defaultRedirectUrl;
+
+      toast.success('Redirecting to CoreMMC Billing Panel...', { duration: 3000 });
+      clearCart();
+      setCartOpen(false);
+      window.location.href = redirectUrl;
+    } catch (e) {
+      console.warn('API checkout order creation warning, redirecting directly:', e);
+      toast.success('Redirecting to CoreMMC Billing Panel...', { duration: 3000 });
+      clearCart();
+      setCartOpen(false);
+      window.location.href = defaultRedirectUrl;
+    } finally {
+      setRedirecting(false);
+    }
   };
 
   return (
@@ -407,10 +428,21 @@ export function CartDrawer() {
 
               <Button
                 onClick={handleProceedToPayment}
-                className="w-full h-12 rounded-full bg-[#6366f1] hover:bg-[#5558e6] text-white font-semibold text-base transition-colors gap-2"
+                disabled={redirecting}
+                className="w-full h-12 rounded-full bg-[#6366f1] hover:bg-[#5558e6] text-white font-semibold text-base transition-all gap-2 shadow-lg shadow-[#6366f1]/25 hover:shadow-[#6366f1]/40"
               >
-                <CreditCard className="h-5 w-5" />
-                Proceed to Payment
+                {redirecting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Redirecting to Billing Panel...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="h-5 w-5" />
+                    Proceed to Payment
+                    <ExternalLink className="h-4 w-4 ml-1 opacity-70" />
+                  </>
+                )}
               </Button>
             </div>
           </>

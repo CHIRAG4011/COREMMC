@@ -65,6 +65,7 @@ import { toast } from 'sonner';
 import { useCartFly } from '@/hooks/use-cart-fly';
 import { playCartSound, playBuySound } from '@/lib/sounds';
 import { TiltCard } from '@/components/ui/tilt-card';
+import { getPaymenterRedirectUrl } from '@/lib/paymenter';
 
 // ─── Icon Mapping ───────────────────────────────────────────────
 const iconMap: Record<string, React.ElementType> = {
@@ -117,14 +118,9 @@ function buyNowSingleProduct(
   userName: string,
   item: { planId: string; name: string; categoryName: string; categoryId: string; price: number; originalPrice: number | null; currency: string; selectedDuration: string },
 ) {
-  // Don't create order yet - show payment view with item data
-  const { showPaymentView } = useAppStore.getState();
-  showPaymentView({
-    amount: item.price,
-    orderId: '',
-    items: [{ name: item.name, price: item.price, quantity: 1, categoryName: item.categoryName }],
-    cartItems: [{ ...item, quantity: 1 }],
-  });
+  const redirectUrl = getPaymenterRedirectUrl([item], { userEmail: userEmail || undefined });
+  toast.success('Redirecting to CoreMMC Billing Panel...', { duration: 3000 });
+  window.location.href = redirectUrl;
 }
 
 // ─── Category-specific FAQs ─────────────────────────────────────
